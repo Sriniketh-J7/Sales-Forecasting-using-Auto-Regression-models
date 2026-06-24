@@ -465,6 +465,8 @@ exog_tr   = exog_full[exog_full.index <= split_date]
 exog_te   = exog_full[exog_full.index >  split_date]
 
 n_test_ts = len(y_te_ts)
+y_tr_ts = y_tr_ts.asfreq("W-FRI")
+y_te_ts = y_te_ts.asfreq("W-FRI")
 
 # ─────────────────────────────────────────────
 # 12. ARIMA
@@ -474,7 +476,7 @@ arima_pred = np.array([])
 try:
     arima_model = ARIMA(y_tr_ts, order=(2,1,2))
     arima_fit   = arima_model.fit()
-    arima_pred  = arima_fit.forecast(steps=n_test_ts).clip(min=0).values
+    arima_pred  = arima_fit.forecast(steps=n_test_ts).clip(lower=0).values
     results.append(metrics("ARIMA(2,1,2)", y_te_ts.values, arima_pred))
     print(f"  RMSE: {rmse(y_te_ts.values, arima_pred):,.2f}")
 except Exception as e:
@@ -483,21 +485,21 @@ except Exception as e:
 # ─────────────────────────────────────────────
 # 13. SARIMAX (ARX — with exogenous features)
 # ─────────────────────────────────────────────
-print("\n=== 11. SARIMAX (ARX) ===")
-sarimax_pred = np.array([])
-try:
-    sarimax_model = SARIMAX(y_tr_ts,
-                             exog=exog_tr,
-                             order=(1,1,1),
-                             seasonal_order=(1,0,1,52),
-                             enforce_stationarity=False,
-                             enforce_invertibility=False)
-    sarimax_fit  = sarimax_model.fit(disp=False, maxiter=100)
-    sarimax_pred = sarimax_fit.forecast(steps=n_test_ts, exog=exog_te).clip(min=0).values
-    results.append(metrics("SARIMAX (ARX)", y_te_ts.values, sarimax_pred))
-    print(f"  RMSE: {rmse(y_te_ts.values, sarimax_pred):,.2f}")
-except Exception as e:
-    print(f"  SARIMAX failed: {e}")
+# print("\n=== 11. SARIMAX (ARX) ===")
+# sarimax_pred = np.array([])
+# try:
+#     sarimax_model = SARIMAX(y_tr_ts,
+#                              exog=exog_tr,
+#                              order=(1,1,1),
+#                              seasonal_order=(1,0,1,52),
+#                              enforce_stationarity=False,
+#                              enforce_invertibility=False)
+#     sarimax_fit  = sarimax_model.fit(disp=False, maxiter=100)
+#     sarimax_pred = sarimax_fit.forecast(steps=n_test_ts, exog=exog_te).clip(lower=0).values
+#     results.append(metrics("SARIMAX (ARX)", y_te_ts.values, sarimax_pred))
+#     print(f"  RMSE: {rmse(y_te_ts.values, sarimax_pred):,.2f}")
+# except Exception as e:
+#     print(f"  SARIMAX failed: {e}")
 
 # ─────────────────────────────────────────────
 # 14. PROPHET
@@ -520,7 +522,10 @@ try:
     p_model.fit(p_train)
 
     future = pd.DataFrame({"ds": y_te_ts.index})
+    print("future rows:", len(future))
+
     for col in exog_cols_available:
+        print(col, len(exog_te[col]))
         future[col] = exog_te[col].values
 
     forecast    = p_model.predict(future)
@@ -650,8 +655,8 @@ for model_name, preds in ml_preds.items():
 ts_preds = {}
 if arima_pred.size > 0:
     ts_preds["ARIMA"] = (y_te_ts.index, y_te_ts.values, arima_pred, "#00838F")
-if sarimax_pred.size > 0:
-    ts_preds["SARIMAX (ARX)"] = (y_te_ts.index, y_te_ts.values, sarimax_pred, "#2E7D32")
+# if sarimax_pred.size > 0:
+#     ts_preds["SARIMAX (ARX)"] = (y_te_ts.index, y_te_ts.values, sarimax_pred, "#2E7D32")
 if prophet_pred.size > 0:
     ts_preds["Prophet"] = (y_te_ts.index, y_te_ts.values, prophet_pred, "#AD1457")
 if lstm_pred_inv.size > 0:
